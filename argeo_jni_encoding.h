@@ -1,3 +1,34 @@
+/* Argeo JNI - C++ headers simplifying JNI development
+
+ Copyright 2024-2025 Mathieu Baudier
+ Copyright 2024-2025 Argeo GmbH
+
+ This program is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 2.1 of the License, or (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with this program; if not, see <https://www.gnu.org/licenses>.
+
+ ## Alternative licenses
+
+ As an alternative, this Program is also provided to you under the terms and
+ conditions of the Eclipse Public License version 2.0 or any later version.
+ A copy of the Eclipse Public License version 2.0 is available at
+ http://www.eclipse.org/legal/epl-2.0.
+
+ This Source Code may also be made available under the following
+ Secondary Licenses when the conditions for such availability set forth
+ in the Eclipse Public License, v. 2.0 are satisfied:
+ GNU General Public License, version 2.0, or any later versions of that license,
+ with additional EPL and JCR permissions.
+ */
 #ifndef argeo_jni_encoding_h
 #define argeo_jni_encoding_h
 

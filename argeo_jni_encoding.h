@@ -55,9 +55,11 @@ inline std::u16string jchars_to_utf16(const jchar *jchars, const jsize length) {
  */
 inline std::u16string jstring_to_utf16(JNIEnv *env, jstring str) {
 	jsize length = env->GetStringLength(str);
-	jchar buf[length];
+	jchar *buf = new jchar[length];
 	env->GetStringRegion(str, 0, length, buf);
-	return argeo::jni::jchars_to_utf16(buf, length);
+	std::u16string res = argeo::jni::jchars_to_utf16(buf, length);
+	delete[] buf;
+	return res;
 }
 
 /** Convert a jstring to a string, via UTF-16.
@@ -71,10 +73,9 @@ inline std::string to_string(JNIEnv *env, jstring str,
 
 /** Convenience method to make casting more readable in code.*/
 inline const jchar* utf16_to_jchars(std::u16string u16text) {
-	// sanity check
 	static_assert(sizeof(char16_t) == sizeof(jchar));
-
-	return reinterpret_cast<const jchar*>(u16text.data());
+	const jchar *res = reinterpret_cast<const jchar*>(u16text.data());
+	return res;
 }
 
 /** UTF-16 string to Java string. No conversion is needed, as this is the default format.*/

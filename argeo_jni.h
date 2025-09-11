@@ -180,8 +180,12 @@ typedef struct java_callback {
  * Return the JNI environment for the current thread or attach it if it was detached.
  * @return true if the current thread was detached before this call.
  */
-inline bool load_thread_jnienv(JavaVM *jvm, void **penv) {
-	jint status = jvm->GetEnv(penv, JNI_VERSION_10);
+inline bool load_thread_jnienv(JavaVM *jvm, JNIEnv **penv) {
+#ifdef __ANDROID__
+        jint status = jvm->GetEnv((void**)penv, JNI_VERSION_1_6);
+#else
+        jint status = jvm->GetEnv((void**)penv, JNI_VERSION_10);
+#endif
 	bool wasDetached = true;
 	if (JNI_EVERSION == status) {
 		// JNI version unsupported
@@ -189,7 +193,12 @@ inline bool load_thread_jnienv(JavaVM *jvm, void **penv) {
 		wasDetached = true;
 	} else if (JNI_EDETACHED == status) {
 		wasDetached = true;
+#ifdef __ANDROID__
+        // AttachCurrentThreadAsDaemon method signature is different on Android
 		jvm->AttachCurrentThreadAsDaemon(penv, nullptr);
+#else
+        jvm->AttachCurrentThreadAsDaemon((void**)penv, nullptr);
+#endif
 	} else {
 		//std::assert(threadEnv != nullptr,"");
 		wasDetached = false;
@@ -200,7 +209,7 @@ inline bool load_thread_jnienv(JavaVM *jvm, void **penv) {
 /** Calls the callback's method on the provided Java object.*/
 inline jboolean exec_boolean_callback(java_callback *cb, ...) {
 	JNIEnv *threadEnv;
-	bool wasDetached = load_thread_jnienv(cb->jvm, (void**) &threadEnv);
+	bool wasDetached = load_thread_jnienv(cb->jvm, &threadEnv);
 	jobject obj = threadEnv->NewLocalRef(cb->callback);
 
 	// process variable arguments

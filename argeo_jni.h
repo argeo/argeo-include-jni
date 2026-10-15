@@ -35,6 +35,9 @@
 #include <cstdarg>
 #include <string>
 #include <stdexcept>
+#include <cstddef>
+#include <new>
+#include <type_traits>
 
 #include <jni.h>
 
@@ -93,7 +96,7 @@ inline std::nullptr_t throw_to_java(JNIEnv *env) {
 		return nullptr;
 
 	try {
-		throw; // rethrows the currently handled exception
+		throw; // re-throw the currently handled exception
 	} catch (const std::bad_alloc &ex) {
 		env->ThrowNew(OutOfMemoryError(env), ex.what());
 	} catch (const std::invalid_argument &ex) {
@@ -138,10 +141,10 @@ inline std::string jclass_name(JNIEnv *env, jclass clazz) {
 			"()Ljava/lang/String;");
 	// ... to apply on the class passed as argument
 	jstring name = (jstring) env->CallObjectMethod(clazz, Class__getName);
-	jsize length = env->GetStringLength(name);
-	std::string str;
-	str.resize(length);
-	env->GetStringUTFRegion(name, 0, length, str.data());
+	jsize utf16_len = env->GetStringLength(name);
+	jsize utf8_len = env->GetStringUTFLength(name);
+	std::string str(utf8_len, '\0');
+	env->GetStringUTFRegion(name, 0, utf16_len, str.data());
 	return str;
 }
 
@@ -149,10 +152,12 @@ inline std::string jclass_name(JNIEnv *env, jclass clazz) {
 inline jfieldID jfield_id(JNIEnv *env, jclass clazz, std::string name,
 		std::string sig) {
 	jfieldID res = env->GetFieldID(clazz, name.c_str(), sig.c_str());
-	if (res == NULL)
+	if (res == nullptr) {
+		env->ExceptionClear(); // clear pending Java error before calling jclass_name
 		throw std::invalid_argument(
 				"Invalid field '" + name + "' with signature " + sig
 						+ " of class " + jclass_name(env, clazz));
+	}
 	return res;
 }
 
@@ -160,10 +165,12 @@ inline jfieldID jfield_id(JNIEnv *env, jclass clazz, std::string name,
 inline jmethodID jmethod_id(JNIEnv *env, jclass clazz, std::string name,
 		std::string sig) {
 	jmethodID res = env->GetMethodID(clazz, name.c_str(), sig.c_str());
-	if (res == NULL)
+	if (res == nullptr) {
+		env->ExceptionClear(); // clear pending Java error before calling jclass_name
 		throw std::invalid_argument(
 				"Invalid method '" + name + "' with signature " + sig
 						+ " of class " + jclass_name(env, clazz));
+	}
 	return res;
 }
 
@@ -171,17 +178,19 @@ inline jmethodID jmethod_id(JNIEnv *env, jclass clazz, std::string name,
 inline jmethodID jmethod_id_static(JNIEnv *env, jclass clazz, std::string name,
 		std::string sig) {
 	jmethodID res = env->GetStaticMethodID(clazz, name.c_str(), sig.c_str());
-	if (res == NULL)
+	if (res == nullptr) {
+		env->ExceptionClear(); // clear pending Java error before calling jclass_name
 		throw std::invalid_argument(
 				"Invalid static method '" + name + "' with signature " + sig
 						+ " of class " + jclass_name(env, clazz));
+	}
 	return res;
 }
 
 /** This Java class. */
 inline jclass find_jclass(JNIEnv *env, std::string name) {
 	jclass res = env->FindClass(name.c_str());
-	if (res == NULL)
+	if (res == nullptr)
 		throw std::invalid_argument("Invalid class " + name);
 	return res;
 }
@@ -211,8 +220,7 @@ inline bool load_thread_jnienv(JavaVM *jvm, JNIEnv **penv) {
 	bool wasDetached = true;
 	if (JNI_EVERSION == status) {
 		// JNI version unsupported
-		// TODO throw exception?
-		wasDetached = true;
+		throw std::runtime_error("JNI_EVERSION error");
 	} else if (JNI_EDETACHED == status) {
 		wasDetached = true;
 #ifdef __ANDROID__
@@ -230,7 +238,7 @@ inline bool load_thread_jnienv(JavaVM *jvm, JNIEnv **penv) {
 
 /** Calls the callback's method on the provided Java object.*/
 inline jboolean exec_boolean_callback(java_callback *cb, ...) {
-	JNIEnv *threadEnv;
+	JNIEnv *threadEnv = nullptr;
 	bool wasDetached = load_thread_jnienv(cb->jvm, &threadEnv);
 	jobject obj = threadEnv->NewLocalRef(cb->callback);
 
@@ -292,8 +300,11 @@ inline std::string to_string(JNIEnv *env, jbyteArray str) {
 
 /** Converts an element of an array of arrays of bytes (typically UTF-8 encoded) to a C++ string.*/
 inline std::string to_string(JNIEnv *env, jobjectArray strings, size_t index) {
-	jbyteArray str = (jbyteArray) env->GetObjectArrayElement(strings, index);
-	return argeo::jni::to_string(env, str);
+	jbyteArray str = (jbyteArray) env->GetObjectArrayElement(strings,
+			static_cast<jsize>(index));
+	std::string res = argeo::jni::to_string(env, str);
+	env->DeleteLocalRef(str);
+	return res;
 }
 
 }  // namespace argeo::jni

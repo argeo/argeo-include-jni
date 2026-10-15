@@ -1,7 +1,7 @@
 /* Argeo JNI - C++ headers simplifying JNI development
 
-Copyright 2024-2025 Mathieu Baudier
-Copyright 2024-2025 Argeo GmbH
+Copyright 2024-2026 Mathieu Baudier
+Copyright 2024-2026 Argeo GmbH
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
@@ -71,6 +71,8 @@ namespace argeo::jni {
 #define IllegalArgumentException(env) env->FindClass("java/lang/IllegalArgumentException")
 #define IndexOutOfBoundsException(env) env->FindClass("java/lang/IndexOutOfBoundsException")
 #define IllegalStateException(env) env->FindClass("java/lang/IllegalStateException")
+#define OutOfMemoryError(env) env->FindClass("java/lang/OutOfMemoryError")
+#define ArithmeticException(env) env->FindClass("java/lang/ArithmeticException")
 
 #define LongSupplier__getAsLong(env) env->GetMethodID( \
 		env->FindClass("java/util/function/LongSupplier"), "getAsLong", "()J")
@@ -79,30 +81,50 @@ namespace argeo::jni {
  * EXCEPTION HANDLING
  */
 /** Catches a standard C++ exception and throws an unchecked Java exception.
+ * MUST be called from a C++ catch clause.
  * Does nothing if a Java execution is already pending
  * (that is, the already thrown java exception has priority).
  * A best effort is made to use an appropriate standard Java exception type.
  * Returns a <code>nullptr</code> as a convenience,
  * so that a call to it can be directly returned as the result of a (failed) non-void C++ function.
  * */
-inline std::nullptr_t throw_to_java(JNIEnv *env, const std::exception &ex) {
+inline std::nullptr_t throw_to_java(JNIEnv *env) {
 	if (env->ExceptionCheck())
 		return nullptr;
-#ifdef __GNUC__
-	if (typeid(std::invalid_argument) == typeid(ex)) {
+
+	try {
+		throw; // rethrows the currently handled exception
+	} catch (const std::bad_alloc &ex) {
+		env->ThrowNew(OutOfMemoryError(env), ex.what());
+	} catch (const std::invalid_argument &ex) {
 		env->ThrowNew(IllegalArgumentException(env), ex.what());
-	} else if (typeid(std::range_error) == typeid(ex)) {
+	} catch (const std::domain_error &ex) {
+		env->ThrowNew(IllegalArgumentException(env), ex.what());
+	} catch (const std::length_error &ex) {
 		env->ThrowNew(IndexOutOfBoundsException(env), ex.what());
-	} else if (typeid(std::runtime_error) == typeid(ex)) {
+	} catch (const std::out_of_range &ex) {
+		env->ThrowNew(IndexOutOfBoundsException(env), ex.what());
+	} catch (const std::overflow_error &ex) {
+		env->ThrowNew(ArithmeticException(env), ex.what());
+	} catch (const std::underflow_error &ex) {
+		env->ThrowNew(ArithmeticException(env), ex.what());
+	} catch (const std::range_error &ex) {
+		env->ThrowNew(ArithmeticException(env), ex.what());
+	} catch (const std::runtime_error &ex) {
 		env->ThrowNew(IllegalStateException(env), ex.what());
-	} else {
+	} catch (const std::exception &ex) {
 		env->ThrowNew(RuntimeException(env), ex.what());
+	} catch (...) {
+		env->ThrowNew(RuntimeException(env), "Unknown native C++ exception");
 	}
-#else
-	env->ThrowNew(RuntimeException(env), ex.what());
-#endif
 	return nullptr;
 }
+
+[[deprecated("Use throw_to_java(env) inside catch (...) instead")]]
+inline std::nullptr_t throw_to_java(JNIEnv *env, const std::exception &) {
+	return throw_to_java(env);
+}
+
 /*
  * SAFE FIELDS AN METHODS ACCESSORS
  */
